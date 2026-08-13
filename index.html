@@ -158,9 +158,9 @@
                 </div>
 
                 <div class="glass" style="padding: 1.5rem; background: #fff;">
-                    <h4 style="font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 1rem;"><i class="fas fa-robot text-blue-500 mr-2"></i> 豆包 AI 实验助手</h4>
+                    <h4 style="font-size: 10px; font-weight: bold; color: #94a3b8; text-transform: uppercase; margin-bottom: 1rem;"><i class="fas fa-robot text-blue-500 mr-2"></i> DeepSeek 实验助手</h4>
                     <div id="ai-chat-content" class="chat-box">
-                        <div class="bubble bubble-ai">您好！我是您的智能实验助手（已接入豆包大模型）。您可以问我关于电路拓扑、算法原理或实验指导的问题。</div>
+                        <div class="bubble bubble-ai">您好！我是您的智能实验助手（已接入DeepSeek大模型）。您可以问我关于电路拓扑、算法原理或实验指导的问题。</div>
                     </div>
                     <div style="display: flex; gap: 10px; margin-top: 10px;">
                         <input type="text" id="ai-input-text" placeholder="请输入您的问题..." style="flex: 1; padding: 0.8rem; border-radius: 0.8rem; border: 1px solid #e2e8f0; outline: none; font-size: 14px;">
@@ -288,7 +288,7 @@
       // 注意：DOUBAO_CONFIG 之间要用下划线连接，不能有空格
 const DOUBAO_CONFIG = {
     apiKey: 'ark-2e8ab76c-ce47-46d8-b67d-ad1ca9126176-66964', 
-    endpointId: 'ep-20240812010210-p48t8', 
+    endpointId: 'ep-20260812010210-p48t8', 
     apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
 };
         /* ========================================================
@@ -326,7 +326,7 @@ const DOUBAO_CONFIG = {
                 title: 'AC-DC 整流稳压原理',
                 p: 'AC-DC 通过整流桥将交流变为脉动直流，再经大容量电容滤波得到稳定直流。',
                 f: '1. 掌握整流滤波技术。\n2. 学习 AC 电压相位捕捉与同步整流。',
-                img: 'ACDC.png'
+                img: 'https://i.postimg.cc/8c7HYQhN/38CAE69A8D1AF9B8A5B00338FA09D21C.png'
             }
         };
 
@@ -437,7 +437,7 @@ const DOUBAO_CONFIG = {
         /* ========================================================
            6. 豆包 AI 逻辑
            ======================================================== */
-      async function askDoubao() {
+     async function askDoubao() {
     const input = document.getElementById('ai-input-text');
     const box = document.getElementById('ai-chat-content');
     const btn = document.getElementById('btn-ask');
@@ -449,12 +449,11 @@ const DOUBAO_CONFIG = {
     box.scrollTop = box.scrollHeight;
 
     const aiBubbleId = 'ai-' + Date.now();
-    box.innerHTML += `<div id="${aiBubbleId}" class="bubble bubble-ai">豆包正在思考...</div>`;
+    box.innerHTML += `<div id="${aiBubbleId}" class="bubble bubble-ai">DeepSeek正在思考...</div>`;
     box.scrollTop = box.scrollHeight;
     btn.disabled = true;
 
     try {
-        // 注意这里调用的是 DOUBAO_CONFIG
         const response = await fetch(DOUBAO_CONFIG.apiUrl, {
             method: 'POST',
             headers: {
@@ -462,7 +461,7 @@ const DOUBAO_CONFIG = {
                 'Authorization': `Bearer ${DOUBAO_CONFIG.apiKey}`
             },
             body: JSON.stringify({
-                model: DOUBAO_CONFIG.endpointId,
+                model: DOUBAO_CONFIG.endpointId, // 确保这个 ID 是最新的
                 messages: [
                     { role: 'system', content: '你是一个电力电子专家。' },
                     { role: 'user', content: userQ }
@@ -471,9 +470,20 @@ const DOUBAO_CONFIG = {
         });
 
         const result = await response.json();
-        document.getElementById(aiBubbleId).innerText = result.choices[0].message.content;
+
+        // --- 增加容错判断 ---
+        if (response.status === 404) {
+            document.getElementById(aiBubbleId).innerText = "错误 404：接入点 ID 已失效或填错，请在方舟控制台检查 Endpoint ID。";
+        } else if (result.choices && result.choices.length > 0) {
+            document.getElementById(aiBubbleId).innerText = result.choices[0].message.content;
+        } else if (result.error) {
+            document.getElementById(aiBubbleId).innerText = "AI 报错：" + result.error.message;
+        } else {
+            document.getElementById(aiBubbleId).innerText = "接收数据异常，请检查控制台。";
+        }
     } catch (error) {
-        document.getElementById(aiBubbleId).innerText = "连接豆包失败，请检查网络或配置。";
+        // 如果是 CORS 跨域问题，会进到这里
+        document.getElementById(aiBubbleId).innerText = "连接失败：可能是跨域限制或网络问题。请尝试开启浏览器跨域插件。";
         console.error(error);
     } finally {
         btn.disabled = false;
