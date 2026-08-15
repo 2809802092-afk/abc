@@ -77,8 +77,6 @@
         </div>
     </div>
 
-
-
     <!-- 侧边栏 -->
     <aside>
         <div style="text-align: center; margin-bottom: 2rem; border-bottom: 1px solid #f8fafc; padding-bottom: 1.5rem;">
@@ -123,8 +121,6 @@
 
         <div style="flex: 1; padding: 2rem; overflow-y: auto; background: #f8fafc;">
             
-
-
             <!-- 首页 -->
             <section id="view-home">
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 1.5rem;">
@@ -176,9 +172,33 @@
                         <button onclick="switchView('home')" style="background: none; border: none; font-size: 10px; font-weight: bold; color: #94a3b8; cursor: pointer; text-transform: uppercase; margin-bottom: 0.5rem;"><i class="fas fa-arrow-left"></i> 返回控制台</button>
                         <h2 id="module-title" style="font-size: 2.25rem; font-weight: 900; font-style: italic; color: #1e293b; margin: 0;">--</h2>
                     </div>
+                    
+                    <!-- 动态切换：单相显示 或 三相(A/B/C)显示 -->
                     <div class="glass" style="padding: 1rem 2rem; display: flex; flex-direction: column; align-items: flex-end; border-right: 8px solid #10b981; background: white; min-width: 320px;">
-                        <span style="font-size: 10px; color: #94a3b8; font-weight: bold;">实时有效值 (RMS)</span>
-                        <div id="monitor-rms" style="font-size: 3rem; font-family: monospace; font-weight: 900;">0.00V</div>
+                        <!-- 单相显示容器 -->
+                        <div id="single-phase-box">
+                            <span style="font-size: 10px; color: #94a3b8; font-weight: bold; display: block; text-align: right;">实时有效值 (RMS)</span>
+                            <div id="monitor-rms" style="font-size: 3rem; font-family: monospace; font-weight: 900;">0.00V</div>
+                        </div>
+                        
+                        <!-- DC3AC 三相显示容器 -->
+                        <div id="three-phase-box" class="hidden" style="width: 100%;">
+                            <span style="font-size: 10px; color: #94a3b8; font-weight: bold; display: block; text-align: right; margin-bottom: 4px;">三相实时有效值 (RMS)</span>
+                            <div style="display: flex; gap: 1.25rem; justify-content: flex-end; align-items: center;">
+                                <div style="text-align: right;">
+                                    <span style="font-size: 10px; font-weight: 900; color: #10b981;">A相 (DC3ACVol)</span>
+                                    <div id="monitor-rms-a" style="font-size: 1.5rem; font-family: monospace; font-weight: 900; color: #10b981;">0.00V</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="font-size: 10px; font-weight: 900; color: #0ea5e9;">B相 (DC3ACVolB)</span>
+                                    <div id="monitor-rms-b" style="font-size: 1.5rem; font-family: monospace; font-weight: 900; color: #0ea5e9;">0.00V</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="font-size: 10px; font-weight: 900; color: #a855f7;">C相 (DC3ACVolC)</span>
+                                    <div id="monitor-rms-c" style="font-size: 1.5rem; font-family: monospace; font-weight: 900; color: #a855f7;">0.00V</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -283,16 +303,16 @@
         }
 
         /* ========================================================
-           1. 豆包 AI 配置 (保持您的原始配置)
+           1. 豆包 AI 配置
            ======================================================== */
-      // 注意：DOUBAO_CONFIG 之间要用下划线连接，不能有空格
-const DOUBAO_CONFIG = {
-    apiKey: 'ark-2e8ab76c-ce47-46d8-b67d-ad1ca9126176-66964', 
-    endpointId: 'ep-20260812010210-p48t8', 
-    apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
-};
+        const DOUBAO_CONFIG = {
+            apiKey: 'ark-2e8ab76c-ce47-46d8-b67d-ad1ca9126176-66964', 
+            endpointId: 'ep-20260812010210-p48t8', 
+            apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
+        };
+
         /* ========================================================
-           2. OneNET 云端同步配置 (保持您的原始配置)
+           2. OneNET 云端同步配置
            ======================================================== */
         const ONENET_CONF = {
             productId: 'K2rpb6w2o1',
@@ -330,7 +350,9 @@ const DOUBAO_CONFIG = {
             }
         };
 
-        let chart, activeId = 'home', historyData = [];
+        let chart, activeId = 'home';
+        // 存储多相历史波形，默认[0]=A/通用, [1]=B, [2]=C
+        let historyData = [[], [], []];
 
         window.onload = () => {
             setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
@@ -363,6 +385,12 @@ const DOUBAO_CONFIG = {
             const vDCAC = parseFloat(getVal('DCACVol')).toFixed(2);
             const vDCDC = parseFloat(getVal('DCDCVol')).toFixed(2);
             const vACDC = parseFloat(getVal('ACDCVol')).toFixed(2);
+            
+            // 新增获取 DC3AC 模式下的 A, B, C 三相电压
+            const v3AC_A = parseFloat(getVal('DC3ACVol')).toFixed(2);
+            const v3AC_B = parseFloat(getVal('DC3ACVolB')).toFixed(2);
+            const v3AC_C = parseFloat(getVal('DC3ACVolC')).toFixed(2);
+            
             const loop  = getVal('loop_mode');
 
             document.getElementById('home-v-display').innerText = vDCAC + 'V';
@@ -373,21 +401,58 @@ const DOUBAO_CONFIG = {
                 if(loopOpen) loopOpen.className = loop == 0 ? 'btn-loop active' : 'btn-loop';
                 if(loopClosed) loopClosed.className = loop == 1 ? 'btn-loop active' : 'btn-loop';
 
-                let displayVal = vDCAC;
-                if (activeId === 'dcdc') displayVal = vDCDC;
-                else if (activeId === 'acdc') displayVal = vACDC;
+                if (activeId === 'dc3ac') {
+                    // 显示三相 RMS 容器
+                    document.getElementById('single-phase-box').classList.add('hidden');
+                    document.getElementById('three-phase-box').classList.remove('hidden');
 
-                const rmsEl = document.getElementById('monitor-rms');
-                if(rmsEl) rmsEl.innerText = displayVal + 'V';
-                updateChart(displayVal);
+                    document.getElementById('monitor-rms-a').innerText = v3AC_A + 'V';
+                    document.getElementById('monitor-rms-b').innerText = v3AC_B + 'V';
+                    document.getElementById('monitor-rms-c').innerText = v3AC_C + 'V';
+
+                    updateChart([v3AC_A, v3AC_B, v3AC_C]);
+                } else {
+                    // 显示单相 RMS 容器
+                    document.getElementById('single-phase-box').classList.remove('hidden');
+                    document.getElementById('three-phase-box').classList.add('hidden');
+
+                    let displayVal = vDCAC;
+                    if (activeId === 'dcdc') displayVal = vDCDC;
+                    else if (activeId === 'acdc') displayVal = vACDC;
+
+                    const rmsEl = document.getElementById('monitor-rms');
+                    if(rmsEl) rmsEl.innerText = displayVal + 'V';
+
+                    updateChart([displayVal]);
+                }
             }
         }
 
-        function updateChart(newVal) {
+        function updateChart(newVals) {
             if(!chart) return;
-            if(historyData.length > 30) historyData.shift();
-            historyData.push([historyData.length, newVal]);
-            chart.setOption({ series: [{ data: historyData.map((v, i) => [i, v[1]]) }] });
+
+            // 单相数据输入转换为数组格式
+            const vals = Array.isArray(newVals) ? newVals : [newVals];
+
+            // 保持数据长度不超过 30
+            if(historyData[0].length >= 30) {
+                historyData[0].shift();
+                historyData[1].shift();
+                historyData[2].shift();
+            }
+
+            const len = historyData[0].length;
+            historyData[0].push([len, vals[0] || 0]);
+            historyData[1].push([len, vals[1] || 0]);
+            historyData[2].push([len, vals[2] || 0]);
+
+            chart.setOption({
+                series: [
+                    { data: historyData[0].map((v, i) => [i, v[1]]) },
+                    { data: historyData[1].map((v, i) => [i, v[1]]) },
+                    { data: historyData[2].map((v, i) => [i, v[1]]) }
+                ]
+            });
         }
 
         /* ========================================================
@@ -406,7 +471,7 @@ const DOUBAO_CONFIG = {
                 document.getElementById('view-module').classList.remove('hidden');
                 const titles = { 'dcdc': 'DC-DC 稳压变换', 'dcac': 'DC-AC 逆变变换', 'dc3ac': 'DC-3AC 三相逆变', 'acdc': 'AC-DC 整流稳压' };
                 document.getElementById('module-title').innerText = titles[id] || "--";
-                historyData = [];
+                historyData = [[], [], []];
                 setTimeout(initEcharts, 200);
             }
         }
@@ -437,70 +502,104 @@ const DOUBAO_CONFIG = {
         /* ========================================================
            6. 豆包 AI 逻辑
            ======================================================== */
-     async function askDoubao() {
-    const input = document.getElementById('ai-input-text');
-    const box = document.getElementById('ai-chat-content');
-    const btn = document.getElementById('btn-ask');
-    const userQ = input.value.trim();
-    if (!userQ) return;
+        async function askDoubao() {
+            const input = document.getElementById('ai-input-text');
+            const box = document.getElementById('ai-chat-content');
+            const btn = document.getElementById('btn-ask');
+            const userQ = input.value.trim();
+            if (!userQ) return;
 
-    box.innerHTML += `<div class="bubble bubble-user">${userQ}</div>`;
-    input.value = "";
-    box.scrollTop = box.scrollHeight;
+            box.innerHTML += `<div class="bubble bubble-user">${userQ}</div>`;
+            input.value = "";
+            box.scrollTop = box.scrollHeight;
 
-    const aiBubbleId = 'ai-' + Date.now();
-    box.innerHTML += `<div id="${aiBubbleId}" class="bubble bubble-ai">DeepSeek正在思考...</div>`;
-    box.scrollTop = box.scrollHeight;
-    btn.disabled = true;
+            const aiBubbleId = 'ai-' + Date.now();
+            box.innerHTML += `<div id="${aiBubbleId}" class="bubble bubble-ai">DeepSeek正在思考...</div>`;
+            box.scrollTop = box.scrollHeight;
+            btn.disabled = true;
 
-    try {
-        const response = await fetch(DOUBAO_CONFIG.apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DOUBAO_CONFIG.apiKey}`
-            },
-            body: JSON.stringify({
-                model: DOUBAO_CONFIG.endpointId, // 确保这个 ID 是最新的
-                messages: [
-                    { role: 'system', content: '你是一个电力电子专家。' },
-                    { role: 'user', content: userQ }
-                ]
-            })
-        });
+            try {
+                const response = await fetch(DOUBAO_CONFIG.apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${DOUBAO_CONFIG.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: DOUBAO_CONFIG.endpointId, 
+                        messages: [
+                            { role: 'system', content: '你是一个电力电子专家。' },
+                            { role: 'user', content: userQ }
+                        ]
+                    })
+                });
 
-        const result = await response.json();
+                const result = await response.json();
 
-        // --- 增加容错判断 ---
-        if (response.status === 404) {
-            document.getElementById(aiBubbleId).innerText = "错误 404：接入点 ID 已失效或填错，请在方舟控制台检查 Endpoint ID。";
-        } else if (result.choices && result.choices.length > 0) {
-            document.getElementById(aiBubbleId).innerText = result.choices[0].message.content;
-        } else if (result.error) {
-            document.getElementById(aiBubbleId).innerText = "AI 报错：" + result.error.message;
-        } else {
-            document.getElementById(aiBubbleId).innerText = "接收数据异常，请检查控制台。";
+                if (response.status === 404) {
+                    document.getElementById(aiBubbleId).innerText = "错误 404：接入点 ID 已失效或填错，请在方舟控制台检查 Endpoint ID。";
+                } else if (result.choices && result.choices.length > 0) {
+                    document.getElementById(aiBubbleId).innerText = result.choices[0].message.content;
+                } else if (result.error) {
+                    document.getElementById(aiBubbleId).innerText = "AI 报错：" + result.error.message;
+                } else {
+                    document.getElementById(aiBubbleId).innerText = "接收数据异常，请检查控制台。";
+                }
+            } catch (error) {
+                document.getElementById(aiBubbleId).innerText = "连接失败：可能是跨域限制或网络问题。请尝试开启浏览器跨域插件。";
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                box.scrollTop = box.scrollHeight;
+            }
         }
-    } catch (error) {
-        // 如果是 CORS 跨域问题，会进到这里
-        document.getElementById(aiBubbleId).innerText = "连接失败：可能是跨域限制或网络问题。请尝试开启浏览器跨域插件。";
-        console.error(error);
-    } finally {
-        btn.disabled = false;
-        box.scrollTop = box.scrollHeight;
-    }
-}
+
         /* ========================================================
-           7. 其他支撑逻辑 (图表、指令等)
+           7. 图表与指令支撑逻辑
            ======================================================== */
         function initEcharts() {
             if(chart) chart.dispose();
             chart = echarts.init(document.getElementById('main-chart'));
+            
+            const is3AC = (activeId === 'dc3ac');
+
             chart.setOption({
-                grid: { top: 20, bottom: 20, left: 50, right: 20 },
+                tooltip: { trigger: 'axis' },
+                legend: {
+                    show: is3AC,
+                    data: ['A相 (DC3ACVol)', 'B相 (DC3ACVolB)', 'C相 (DC3ACVolC)'],
+                    top: 0
+                },
+                grid: { top: is3AC ? 40 : 20, bottom: 20, left: 50, right: 20 },
                 xAxis: { type: 'value', show: false, min: 0, max: 30 },
-                yAxis: { type: 'value', min: 0, max: 60, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } } },
-                series: [{ type: 'line', smooth: true, showSymbol: false, data: [], itemStyle: { color: '#10b981' }, areaStyle: { color: 'rgba(16,185,129,0.05)' } }]
+                yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } } },
+                series: [
+                    { 
+                        name: 'A相 (DC3ACVol)', 
+                        type: 'line', 
+                        smooth: true, 
+                        showSymbol: false, 
+                        data: [], 
+                        itemStyle: { color: '#10b981' }, // 绿色 代表 A 相
+                        areaStyle: { color: 'rgba(16,185,129,0.05)' } 
+                    },
+                    { 
+                        name: 'B相 (DC3ACVolB)', 
+                        type: 'line', 
+                        smooth: true, 
+                        showSymbol: false, 
+                        data: [], 
+                        itemStyle: { color: '#0ea5e9' }  // 蓝色 代表 B 相
+                    },
+                    { 
+                        name: 'C相 (DC3ACVolC)', 
+                        type: 'line', 
+                        smooth: true, 
+                        showSymbol: false, 
+                        data: [], 
+                        itemStyle: { color: '#a855f7' }  // 紫色 代表 C 相
+                    }
+                ]
             });
         }
 
